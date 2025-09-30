@@ -1,13 +1,9 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib
 
-# --- Load trained model and columns ---
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
-
-with open("columns.pkl", "rb") as f:
-    model_columns = pickle.load(f)
+# --- Load trained pipeline ---
+pipeline = joblib.load("attrition_pipeline.pkl")
 
 # --- Page Config ---
 st.set_page_config(
@@ -47,15 +43,20 @@ st.markdown(
 # --- Title ---
 st.title("🧑‍💼 Employee Attrition Prediction App")
 st.markdown(
-    "Predict whether an employee is likely to **leave the company** based on HR features.")
+    "Predict whether an employee is likely to **leave the company** based on HR features."
+)
 
 # --- Sidebar Information ---
 st.sidebar.header("About App")
 st.sidebar.info(
     """
-    📊 This app uses a Machine Learning model (Logistic Regression)  
-    trained on HR Employee Attrition data.  
-    Enter employee details below to get prediction.
+    Welcome to the Employee Attrition Predictor!!!  
+
+    This app uses a smart Machine Learning model to analyze  
+    employee details and estimate the chance of leaving the company.  
+
+     Simply fill in the form with employee information  
+    and click "Predict" to see the result instantly..
     """
 )
 
@@ -65,17 +66,19 @@ st.header("📋 Enter Employee Details")
 col1, col2 = st.columns(2)
 
 with col1:
-    Age = st.number_input("Age", min_value=18, max_value=60, step=1)
+    Age = st.number_input("Age", min_value=18, max_value=60, step=1, value=30)
     Gender = st.selectbox("Gender", ["Male", "Female"])
-    Education = st.selectbox("Education Level", [1, 2, 3, 4, 5],
-                             help="1: Below College, 2: College, 3: Bachelor, 4: Master, 5: Doctor")
+    Education = st.selectbox(
+        "Education Level", [1, 2, 3, 4, 5],
+        help="1: Below College, 2: College, 3: Bachelor, 4: Master, 5: Doctor"
+    )
 
 with col2:
     BusinessTravel = st.selectbox(
         "Business Travel", ["Travel_Rarely", "Travel_Frequently", "Non-Travel"]
     )
     Department = st.selectbox(
-        "Department", ["Sales", "Research & Development", "HR"]
+        "Department", ["Sales", "Research & Development", "Human Resources"]
     )
     JobRole = st.selectbox(
         "Job Role",
@@ -88,60 +91,37 @@ with col2:
             "Manager",
             "Sales Representative",
             "Human Resources",
-            "Technical Architect"
+            "Technician"
         ],
     )
 
 MonthlyIncome = st.number_input(
-    "Monthly Income", min_value=1000, max_value=50000, step=500)
+    "Monthly Income", min_value=1000, max_value=50000, step=500, value=5000
+)
 DistanceFromHome = st.slider("Distance From Home (km)", 1, 50, 5)
 
-# --- Convert inputs into DataFrame ---
-input_dict = {
+# --- Convert inputs into DataFrame (raw, no manual encoding) ---
+user_input = pd.DataFrame([{
     "Age": Age,
+    "BusinessTravel": BusinessTravel,
+    "Department": Department,
+    "JobRole": JobRole,
+    "Gender": Gender,
     "MonthlyIncome": MonthlyIncome,
     "DistanceFromHome": DistanceFromHome,
-    "Education": Education,
-
-    # One-hot encode BusinessTravel
-    "BusinessTravel_Travel_Frequently": 1 if BusinessTravel == "Travel_Frequently" else 0,
-    "BusinessTravel_Travel_Rarely": 1 if BusinessTravel == "Travel_Rarely" else 0,
-    "BusinessTravel_Non-Travel": 1 if BusinessTravel == "Non-Travel" else 0,
-
-    # One-hot encode Department
-    "Department_Research & Development": 1 if Department == "Research & Development" else 0,
-    "Department_Sales": 1 if Department == "Sales" else 0,
-    "Department_HR": 1 if Department == "HR" else 0,
-
-    # One-hot encode Gender
-    "Gender_Male": 1 if Gender == "Male" else 0,
-    "Gender_Female": 1 if Gender == "Female" else 0,
-}
-
-# One-hot encode JobRole
-job_roles = [
-    "Sales Executive", "Research Scientist", "Laboratory Technician",
-    "Manufacturing Director", "Healthcare Representative", "Manager",
-    "Sales Representative", "Human Resources", "Technical Architect"
-]
-for role in job_roles:
-    input_dict[f"JobRole_{role}"] = 1 if JobRole == role else 0
-
-input_df = pd.DataFrame([input_dict])
-
-# --- Handle missing columns ---
-for col in model_columns:
-    if col not in input_df.columns:
-        input_df[col] = 0
-
-# Reorder to match training
-input_df = input_df[model_columns]
+    "Education": Education
+}])
 
 # --- Predict ---
 if st.button("🔍 Predict Attrition"):
-    prob = model.predict_proba(input_df)[:, 1][0]
+    # probability of Attrition = 1
+    prob = pipeline.predict_proba(user_input)[0][1]
     prediction = "Likely to Leave 😟" if prob > 0.5 else "Likely to Stay 🙂"
 
     st.subheader("🔎 Prediction Result")
     st.metric(label="Attrition Probability", value=f"{prob*100:.2f}%")
-    st.success(prediction if prob < 0.5 else prediction)
+
+    if prob > 0.5:
+        st.error(prediction)
+    else:
+        st.success(prediction)
