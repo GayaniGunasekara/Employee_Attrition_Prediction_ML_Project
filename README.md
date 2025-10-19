@@ -38,5 +38,4 @@ The Streamlit app provides an easy-to-use interface where users can:
 
 ---
 
-## 📂 Project Structure
 
